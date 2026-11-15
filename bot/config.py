@@ -159,6 +159,10 @@ class Settings:
     auto_sync_google_sheets: bool = True
     min_file_size_bytes: int = 1
     source_chat_username: str | None = None
+    shift_group_chat_id: int | None = None
+    shift_timezone: str = "Asia/Damascus"
+    catalog_reconcile_enabled: bool = False
+    catalog_auto_register: bool = False
 
     @classmethod
     def from_env(cls, *, dotenv_path: Path = Path(".env")) -> "Settings":
@@ -184,14 +188,19 @@ class Settings:
             source_chat_id = int(source_raw)
             api_id = int(os.getenv("TELEGRAM_API_ID", "0")) or None
             min_size = int(os.getenv("MIN_FILE_SIZE_BYTES", "1"))
+            shift_group_chat_id = int(os.getenv("SHIFT_GROUP_CHAT_ID", "0")) or None
         except ValueError as exc:
             raise ConfigurationError(
-                "SOURCE_CHAT_ID, TELEGRAM_API_ID, and MIN_FILE_SIZE_BYTES must be integers"
+                "SOURCE_CHAT_ID, TELEGRAM_API_ID, MIN_FILE_SIZE_BYTES, and SHIFT_GROUP_CHAT_ID must be integers"
             ) from exc
         if source_chat_id >= 0:
             raise ConfigurationError("SOURCE_CHAT_ID must be a negative group/chat ID")
         if min_size < 0:
             raise ConfigurationError("MIN_FILE_SIZE_BYTES cannot be negative")
+        if shift_group_chat_id is not None and (
+            shift_group_chat_id >= 0 or shift_group_chat_id == source_chat_id
+        ):
+            raise ConfigurationError("SHIFT_GROUP_CHAT_ID must be a separate, negative group ID")
         return cls(
             bot_token=_required("BOT_TOKEN"),
             bot_username=username,
@@ -220,6 +229,11 @@ class Settings:
             source_chat_username=os.getenv(
                 "SOURCE_CHAT_USERNAME", ""
             ).strip().lstrip("@") or None,
+            shift_group_chat_id=shift_group_chat_id,
+            shift_timezone=os.getenv("SHIFT_TIMEZONE", "Asia/Damascus").strip(),
+            catalog_reconcile_enabled=_boolean("CATALOG_RECONCILE_ENABLED"),
+            catalog_auto_register=_boolean("CATALOG_AUTO_REGISTER"),
+
         )
 
     @property

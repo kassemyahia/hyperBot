@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>HyperBot — لوحة الإدارة</title>
+<style>
+:root{font-family:system-ui,"Segoe UI",Tahoma,sans-serif;background:#0b1120;color:#e8eef9;color-scheme:dark}
+*{box-sizing:border-box}body{margin:0}a{color:#83b9ff}button,input,select{font:inherit}
+button,.btn{cursor:pointer;border:1px solid #4167a5;background:#2755b0;color:white;border-radius:10px;padding:9px 15px}
+button:hover,.btn:hover{background:#346dd9}input,select{background:#101b30;color:#f1f5ff;border:1px solid #37465e;border-radius:9px;padding:9px;min-width:0;width:100%}
+label{display:block;font-size:.86rem;color:#b5c6e0}label input,label select{margin-top:5px}
+header{position:sticky;top:0;z-index:2;background:#101c30ec;backdrop-filter:blur(10px);border-bottom:1px solid #293854;padding:17px clamp(16px,4vw,56px);display:flex;justify-content:space-between;align-items:center;gap:12px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:1.2rem}
+.brand b{background:#346bd2;padding:9px;border-radius:12px}.shell{max-width:1360px;margin:auto;padding:30px clamp(16px,4vw,48px)}
+h1{font-size:clamp(1.5rem,3vw,2.25rem);margin:0 0 6px}h2{font-size:1.22rem;margin:0 0 14px}h3{font-size:1rem;margin:0 0 10px}
+p{color:#adbed7;margin:6px 0 18px}.muted,small{color:#9db1d0;font-size:.83rem}.notice{background:#1b314e;border:1px solid #395b87;padding:12px 16px;border-radius:12px;margin:20px 0}
+nav{display:flex;gap:8px;flex-wrap:wrap;margin:22px 0}nav a{padding:9px 14px;border:1px solid #304563;border-radius:12px;text-decoration:none;color:#bed3f6}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:24px 0}
+.panel,.stat{background:#111d31;border:1px solid #2b3c56;border-radius:17px;padding:20px;min-width:0}
+.stat strong{font-size:2rem;display:block;color:#fff;margin-top:7px}
+table{border-collapse:collapse;width:100%;min-width:700px;font-size:.9rem}td,th{text-align:right;padding:11px;border-bottom:1px solid #263750;vertical-align:top}th{color:#8faad0}
+.scroll{overflow:auto;max-height:550px}code{font-size:.84em;color:#a8ccff}
+.pill{font-size:.77rem;padding:5px 9px;border-radius:30px;background:#263b59;display:inline-block}
+.pill.ok{background:#164b3e;color:#97edc4}.pill.warn{background:#59431c;color:#ffda94}
+.formgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:10px 0}
+.row{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.row>*{flex:1}
+details{padding:13px;border-radius:12px;border:1px solid #304563;background:#0d1729;margin:8px 0}
+summary{cursor:pointer;color:#cbe0ff;font-weight:600}details form{margin-top:14px}
+.file{border-top:1px solid #263750;padding:17px 0}.file:first-of-type{border-top:0}
+.file-name{font-weight:700;overflow-wrap:anywhere}.hint{font-size:.83rem;overflow-wrap:anywhere;color:#a2b4d0}
+.shift{border:1px solid #2a405d;border-radius:12px;padding:14px;margin:8px 0}
+.shift-head{display:flex;justify-content:space-between;gap:12px}.day{font-weight:750}
+.right{display:flex;justify-content:flex-end;gap:8px}
+@media(max-width:560px){.formgrid{grid-template-columns:1fr}.shell{padding:17px}header{padding:12px}.panel{padding:14px}}
+</style>
+</head>
+<body>
+<header><div class="brand"><b>H</b><span>HyperBot <small>Admin Console</small></span></div>
+<form method="post" action="/logout"><input type="hidden" name="csrf" value="{{ csrf }}"><button>تسجيل الخروج</button></form></header>
+<main class="shell">
+<h1>لوحة إدارة هايبر تيم</h1><p>مزامنة الملفات من Hyper Vault وتنظيم مناوبات الفريق</p>
+{% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
+{% if sheet_error %}<div class="notice">تعذر تحميل فهرس Google Sheets: {{ sheet_error }}</div>{% endif %}
+<nav><a href="#files">الملفات الجديدة</a><a href="#catalog">الفهرس</a><a href="#shifts">المناوبات</a><a href="#history">سجل التنبيهات</a></nav>
+<div class="cards">
+<div class="stat"><small>بانتظار المراجعة</small><strong>{{ candidates|length }}</strong></div>
+<div class="stat"><small>الملفات المسجلة</small><strong>{{ records|length }}</strong></div>
+<div class="stat"><small>صفوف الفهرس</small><strong>{{ entries|length }}</strong></div>
+<div class="stat"><small>المناوبات القادمة</small><strong>{{ shifts|selectattr('complete')|list|length }}</strong></div>
+</div>
+<section id="files" class="panel">
+<div class="row"><h2>الملفات المكتشفة</h2>
+<form action="/files/reconcile" method="post"><input type="hidden" name="csrf" value="{{csrf}}"><button>مزامنة روابط الشيت الآن</button></form></div>
+<p>اربط الملف بصف موجود أو أضف صفاً جديداً. كل عملية تعتمد على رسالة تلغرام مكتشفة من المجموعة المعتمدة.</p>
+{% for item in candidates %}
+{% set c=item.candidate %}{% set m=item.message %}
+<div class="file">
+<div class="row"><div class="file-name">{{m.filename or 'بدون اسم'}} <span class="pill">{{c.status}}</span></div>
+<small>{{ m.topic_title or m.topic_id or 'General' }} · {{m.file_size or '—'}} bytes · #{{m.message_id}}</small></div>
+<div class="hint">{{item.source_url}}</div>
+{% if c.website_title %}<div class="hint">اقتراح مطابق: {{c.website_title}}</div>{% endif %}
+<details><summary>ربط بصف موجود في Google Sheets</summary>
+<form method="post" action="/files/link">
+<input type="hidden" name="csrf" value="{{csrf}}"><input type="hidden" name="candidate_id" value="{{c.id}}">
+<div class="formgrid"><label>الشيت<select name="sheet"><option value="softwares">softwares</option><option value="courses">courses</option></select></label>
+<label>رقم الصف (انظر الجدول أدناه)<input name="row_number" type="number" min="2" required></label></div>
+<button>ربط وتوليد رابط التحميل</button>
+</form></details>
+<details><summary>إضافة عنصر جديد للشيت</summary>
+<form method="post" action="/files/create">
+<input type="hidden" name="csrf" value="{{csrf}}"><input type="hidden" name="candidate_id" value="{{c.id}}">
+<div class="formgrid">
+<label>الشيت<select name="sheet"><option value="softwares">softwares</option><option value="courses">courses</option></select></label>
+<label>اسم الملف<input name="title" value="{{m.filename or ''}}" maxlength="200" required></label>
+<label>الحجم<input name="size" placeholder="110MB"></label><label>المسار<input name="path" value="{{m.topic_title or ''}}"></label>
+<label>التصنيف<input name="category" value="{{m.topic_title or ''}}"></label>
+<label>التفاصيل<input name="details"></label></div>
+<button>إنشاء صف وربط الملف</button></form></details>
+</div>
+{% else %}<p>لا يوجد حالياً ملفات تحتاج مراجعة.</p>{% endfor %}
+</section>
+<section id="catalog" class="panel" style="margin-top:16px">
+<h2>فهرس Google Sheets</h2>
+<p>ابحث عن الصف أو المعرّف المطلوب قبل ربط الملفات. صفوف Google Sheets قد تتغير؛ يتم إعادة التحقق من هويتها عند التنفيذ.</p>
+<input id="search" type="search" placeholder="ابحث بالاسم أو File ID..." oninput="filterCatalog()">
+<div class="scroll"><table id="catalog-table"><thead><tr><th>الصف</th><th>التبويب</th><th>الاسم</th><th>File ID</th><th>الحالة</th></tr></thead><tbody>
+{% for e in entries %}<tr><td>{{e.row_number}}</td><td>{{e.sheet_name}}</td><td>{{e.title}}</td><td><code>{{e.file_id or '—'}}</code></td><td>{{e.telegram_status or '—'}}</td></tr>{% endfor %}
+</tbody></table></div>
+</section>
+<section id="shifts" style="margin-top:26px">
+<h2>جدول المناوبات الأسبوعي</h2><p>الأحد إلى الخميس · 6 أفراد لكل يوم · التذكير الساعة 9 مساءً بتوقيت دمشق قبل المناوبة بيوم.</p>
+{% if not group_configured %}<div class="notice">تنبيه: لم يتم ضبط SHIFT_GROUP_CHAT_ID، ولن تُرسل تنبيهات المناوبات.</div>{% endif %}
+<div class="grid">
+{% for day,name in [(0,'الأحد'),(1,'الاثنين'),(2,'الثلاثاء'),(3,'الأربعاء'),(4,'الخميس')] %}
+<div class="panel">
+<h3>{{name}}</h3>
+<form action="/shifts/weekly" method="post">
+<input type="hidden" name="csrf" value="{{csrf}}"><input type="hidden" name="day" value="{{day}}">
+{% set users=weekly[day] %}
+<div class="formgrid">
+<label>الكوتش<input name="coach" value="{{users[0]}}" placeholder="@coach" required></label>
+<label>مساعد الكوتش<input name="co_coach" value="{{users[1]}}" placeholder="@co_coach" required></label>
+{% for i in range(4) %}<label>العضو {{i+1}}<input name="member{{i+1}}" value="{{users[i+2]}}" placeholder="@member" required></label>{% endfor %}
+</div><button>حفظ {{name}}</button></form>
+</div>
+{% endfor %}
+</div>
+<div class="panel" style="margin-top:18px"><h2>تعديل مناوبة بتاريخ محدد</h2>
+<form action="/shifts/override" method="post"><input type="hidden" name="csrf" value="{{csrf}}">
+<div class="formgrid">
+<label>تاريخ المناوبة<input type="date" name="shift_date" required></label>
+<label>الكوتش<input name="coach" required></label><label>مساعد الكوتش<input name="co_coach" required></label>
+{% for i in range(4) %}<label>عضو {{i+1}}<input name="member{{i+1}}" required></label>{% endfor %}
+</div><button>حفظ التعديل الخاص</button></form>
+</div>
+<div class="panel" style="margin-top:18px"><h2>المناوبات القادمة</h2>
+{% for shift in shifts %}
+<div class="shift"><div class="shift-head"><span class="day">{{shift.date}}</span><span class="pill {{'ok' if shift.complete else 'warn'}}">{{'جاهزة' if shift.complete else ('ملغاة' if shift.cancelled else 'غير مكتملة')}}</span></div>
+<div class="hint">{{shift.names|join(' · ')}}</div>
+<form action="/shifts/cancel" method="post" style="margin-top:10px" class="right">
+<input type="hidden" name="csrf" value="{{csrf}}"><input type="hidden" name="shift_date" value="{{shift.date}}">
+<input type="hidden" name="cancel" value="{{'false' if shift.cancelled else 'true'}}">
+<button>{{'إلغاء الإلغاء' if shift.cancelled else 'إلغاء المناوبة'}}</button></form>
+</div>{% endfor %}
+</div>
+</section>
+<section id="history" class="panel" style="margin:26px 0">
+<h2>سجل تذكيرات المناوبات</h2>
+<div class="scroll"><table><thead><tr><th>التاريخ</th><th>الحالة</th><th>وقت المحاولة</th><th>رقم الرسالة</th></tr></thead><tbody>
+{% for item in history %}<tr><td>{{item.date}}</td><td>{{item.status}}</td><td>{{item.attempted_at}}</td><td>{{item.message_id or '—'}}</td></tr>{% endfor %}
+</tbody></table></div>
+</section>
+</main>
+<script>
+function filterCatalog(){const q=document.getElementById('search').value.toLocaleLowerCase();document.querySelectorAll('#catalog-table tbody tr').forEach(r=>{r.hidden=!r.textContent.toLocaleLowerCase().includes(q)})}
+</script>
+</body></html>
