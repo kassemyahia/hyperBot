@@ -188,7 +188,10 @@ class Settings:
             source_chat_id = int(source_raw)
             api_id = int(os.getenv("TELEGRAM_API_ID", "0")) or None
             min_size = int(os.getenv("MIN_FILE_SIZE_BYTES", "1"))
-            shift_group_chat_id = int(os.getenv("SHIFT_GROUP_CHAT_ID", "0")) or None
+            shift_group_raw = os.getenv("SHIFT_GROUP_CHAT_ID", "").strip()
+            shift_group_chat_id = int(shift_group_raw) if shift_group_raw else None
+            if shift_group_chat_id == 0:
+                shift_group_chat_id = None
         except ValueError as exc:
             raise ConfigurationError(
                 "SOURCE_CHAT_ID, TELEGRAM_API_ID, MIN_FILE_SIZE_BYTES, and SHIFT_GROUP_CHAT_ID must be integers"
