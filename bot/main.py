@@ -50,6 +50,8 @@ from bot.services.pipeline import DiscoveryPipeline
 from bot.services.review import ReviewService
 from bot.services.rate_limit import RateLimiter
 from bot.services.registration_drafts import RegistrationDraftStore
+from bot.services.shift_schedule import ShiftStore, check_shift_reminder
+from bot.services.catalog_reconciliation import reconcile_catalog
 from bot.utils.logging import configure_logging
 
 logger = logging.getLogger(__name__)
@@ -218,6 +220,55 @@ def build_application(settings: Settings) -> Application:
             logger.error("Unhandled update error", exc_info=error_info)
 
     application.add_error_handler(error_handler)
+    # One polling process owns scheduled delivery; the dashboard is web-only.
+    if settings.shift_group_chat_id:
+        if application.job_queue is None:
+            raise ConfigurationError(
+                "Install python-telegram-bot[job-queue] for shift reminders"
+            )
+        shift_store = ShiftStore(settings.database_path)
+
+        async def shift_tick(context):
+            try:
+                await check_shift_reminder(
+                    context, store=shift_store, group_id=settings.shift_group_chat_id,
+                    timezone=settings.shift_timezone,
+                )
+            except Exception:
+                logger.exception("Scheduled shift notification failed")
+
+        application.job_queue.run_repeating(
+            shift_tick, interval=60, first=10, name="hyperteam-shift-reminder"
+        )
+
+    if settings.catalog_reconcile_enabled and settings.google_sheet_id:
+        if application.job_queue is None:
+            raise ConfigurationError(
+                "Install python-telegram-bot[job-queue] for reconciliation"
+            )
+
+        async def catalog_tick(context):
+            try:
+                catalog = GoogleSheetsCatalog(
+                    settings.google_sheet_id, settings.google_application_credentials
+                )
+                result = await asyncio.to_thread(
+                    reconcile_catalog, repository, catalog,
+                    source_chat_id=settings.source_chat_id,
+                    source_username=settings.source_chat_username or "",
+                    bot_username=settings.bot_username,
+                    auto_register=settings.catalog_auto_register,
+                )
+                if result["linked"] or result["errors"]:
+                    logger.info("Catalog reconciliation: %s", result)
+            except Exception:
+                logger.exception("Catalog reconciliation failed")
+
+        application.job_queue.run_repeating(
+            catalog_tick, interval=300, first=90,
+            name="hyperteam-sheet-reconciliation"
+        )
+
     application.bot_data["settings"] = settings
     application.bot_data["repository"] = repository
     return application

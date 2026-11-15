@@ -224,7 +224,7 @@ class GoogleSheetsCatalog:
                 return value or None
 
             if (original_cell(title_index) != target.expected_title
-                    or original_cell(source_index) != target.expected_source_url):
+                    or original_cell(source_index) != (target.expected_source_url or None)):
                 raise SheetsError("Target catalog row identity changed; refusing update")
 
         headers, _ = self._ensure_columns(sheet_name, values)
@@ -288,6 +288,96 @@ class GoogleSheetsCatalog:
         ):
             raise SheetsError("Target File ID writes could not be verified")
         return [refreshed[target.row_number] for target in normalized_targets]
+
+
+    def update_source_link(
+        self, *, sheet_name: str, row_number: int, expected_title: str,
+        expected_source_url: str | None, source_url: str,
+    ) -> CatalogEntry:
+        """Write only Source Type after validating the target row's identity."""
+        if sheet_name not in SHEET_NAMES or row_number < 2:
+            raise ValueError("Invalid target row")
+        from bot.services.matching import parse_telegram_source_url
+        if parse_telegram_source_url(source_url) is None:
+            raise ValueError("Invalid Telegram source URL")
+        entries = self.load_entries()
+        targets = [entry for entry in entries
+                   if entry.sheet_name == sheet_name and entry.row_number == row_number]
+        if len(targets) != 1:
+            raise SheetsError("Target catalog row missing")
+        entry = targets[0]
+        if entry.title != expected_title or entry.source_type != (expected_source_url or None):
+            raise SheetsError("Catalog row identity changed")
+        if any(other.source_type == source_url
+               and (other.sheet_name, other.row_number) != (sheet_name, row_number)
+               for other in entries):
+            raise SheetsError("Another catalog row already uses the source URL")
+        if entry.source_type == source_url:
+            return entry
+        values = self._read(sheet_name)
+        headers = values[0]
+        index = _column_index(headers, "Source Type")
+        if index is None:
+            raise SheetsError("Source Type column not found")
+        try:
+            _execute(self._values().update(
+                spreadsheetId=self.spreadsheet_id,
+                range=f"'{sheet_name}'!{_column_name(index + 1)}{row_number}",
+                valueInputOption="RAW", body={"values": [[source_url]]},
+            ))
+        except Exception as exc:
+            raise SheetsError("Unable to update Telegram source URL") from exc
+        updated = [e for e in self.load_entries()
+                   if e.sheet_name == sheet_name and e.row_number == row_number]
+        if len(updated) != 1 or updated[0].source_type != source_url:
+            raise SheetsError("Source-link update could not be verified")
+        return updated[0]
+
+    def append_catalog_entry(
+        self, sheet_name: str, *, file_id: str, title: str, size: str,
+        path: str, category: str, source_url: str, details: str,
+    ) -> CatalogEntry:
+        """Add a new approved catalog item without changing existing rows."""
+        from bot.services.matching import parse_telegram_source_url
+        file_id = validate_website_id(file_id)
+        title = title.strip()
+        if sheet_name not in SHEET_NAMES or not 1 <= len(title) <= 200:
+            raise ValueError("Invalid destination or title")
+        if parse_telegram_source_url(source_url) is None:
+            raise ValueError("Invalid Telegram source URL")
+        current = self.load_entries()
+        existing_id = [e for e in current if e.file_id == file_id]
+        if len(existing_id) == 1 and existing_id[0].source_type == source_url:
+            return existing_id[0]
+        if existing_id or any(e.source_type == source_url for e in current):
+            raise SheetsError("Source URL or File ID is already used")
+        data = self._read(sheet_name)
+        headers, _ = self._ensure_columns(sheet_name, data)
+        positions = _positions(headers)
+        row = [""] * len(headers)
+        fields = {
+            "File Name": title, "Size": size[:80], "Path": path[:250],
+            "Category": category[:100], "Source Type": source_url,
+            "Details": details[:1200], "File ID": file_id,
+            "Telegram Link": "", "Telegram Status": "pending_review",
+        }
+        for key, value in fields.items():
+            index = positions.get(_header_key(key))
+            if index is not None:
+                row[index] = value
+        try:
+            _execute(self._values().append(
+                spreadsheetId=self.spreadsheet_id,
+                range=f"'{sheet_name}'!A1",
+                valueInputOption="RAW", insertDataOption="INSERT_ROWS",
+                body={"values": [row]},
+            ))
+        except Exception as exc:
+            raise SheetsError("Failed to create catalog entry; verify Sheet before retry") from exc
+        matches = [e for e in self.load_entries() if e.file_id == file_id]
+        if len(matches) != 1 or matches[0].source_type != source_url:
+            raise SheetsError("New catalog row could not be verified")
+        return matches[0]
 
     def update_registration(self, file_id: str, telegram_link: str | None,
                             status: str) -> CatalogEntry:

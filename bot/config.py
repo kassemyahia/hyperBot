@@ -159,6 +159,10 @@ class Settings:
     auto_sync_google_sheets: bool = True
     min_file_size_bytes: int = 1
     source_chat_username: str | None = None
+    shift_group_chat_id: int | None = None
+    shift_timezone: str = "Asia/Damascus"
+    catalog_reconcile_enabled: bool = False
+    catalog_auto_register: bool = False
 
     @classmethod
     def from_env(cls, *, dotenv_path: Path = Path(".env")) -> "Settings":
@@ -220,6 +224,13 @@ class Settings:
             source_chat_username=os.getenv(
                 "SOURCE_CHAT_USERNAME", ""
             ).strip().lstrip("@") or None,
+            shift_group_chat_id=(
+                int(os.getenv("SHIFT_GROUP_CHAT_ID", "0")) or None
+            ),
+            shift_timezone=os.getenv("SHIFT_TIMEZONE", "Asia/Damascus").strip(),
+            catalog_reconcile_enabled=_boolean("CATALOG_RECONCILE_ENABLED"),
+            catalog_auto_register=_boolean("CATALOG_AUTO_REGISTER"),
+
         )
 
     @property
