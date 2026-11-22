@@ -69,6 +69,23 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertFalse(self.store.effective(__import__("datetime").date(2026, 11, 15)).complete)
 
+    def test_local_shift_write_blocked_in_sheet_mode(self):
+        self.client.post("/login", data={"passphrase": "local-long-test-password-only"})
+        page = self.client.get("/")
+        csrf = re.search(r'name="csrf" value="([^"]+)"', page.text)
+        self.assertIsNotNone(csrf)
+        with patch.dict(os.environ, {"SHIFT_SHEET_ID": "real-sheet-id"}):
+            response = self.client.post("/shifts/weekly", data={
+                "day": "0", "coach": "CoachOne", "co_coach": "CoCoachTwo",
+                "member1": "MemberOne", "member2": "MemberTwo",
+                "member3": "MemberThree", "member4": "MemberFour",
+                "csrf": csrf.group(1),
+            })
+        self.assertEqual(response.status_code, 409)
+        self.assertFalse(
+            self.store.effective(__import__("datetime").date(2026, 11, 15)).complete
+        )
+
     def test_shift_save_after_valid_csrf(self):
         self.client.post("/login", data={"passphrase": "local-long-test-password-only"})
         page = self.client.get("/")
