@@ -89,8 +89,13 @@ summary{cursor:pointer;color:#cbe0ff;font-weight:600}details form{margin-top:14p
 </tbody></table></div>
 </section>
 <section id="shifts" style="margin-top:26px">
-<h2>جدول المناوبات الأسبوعي</h2><p>الأحد إلى الخميس · 6 أفراد لكل يوم · التذكير الساعة 9 مساءً بتوقيت دمشق قبل المناوبة بيوم.</p>
+<h2>{{ 'مناوبات Google Sheets' if shift_sheet_enabled else 'جدول المناوبات الأسبوعي' }}</h2><p>الأحد إلى الخميس · 6 أفراد لكل يوم · التذكير الساعة 9 مساءً بتوقيت دمشق قبل المناوبة بيوم.</p>
+{% if shift_sheet_enabled %}
+<p>المناوبات تُقرأ من <a href="{{shift_sheet_url}}" target="_blank" rel="noopener noreferrer">جدول Hyper Shifts</a> مباشرةً، وتُعدّل هناك فقط.</p>
+{% if shift_sheet_error %}<div class="notice">تعذر قراءة جدول المناوبات: {{ shift_sheet_error }}. لن تُرسل تنبيهات اعتماداً على نسخة محلية قديمة.</div>{% endif %}
+{% endif %}
 {% if not group_configured %}<div class="notice">تنبيه: لم يتم ضبط SHIFT_GROUP_CHAT_ID، ولن تُرسل تنبيهات المناوبات.</div>{% endif %}
+{% if not shift_sheet_enabled %}
 <div class="grid">
 {% for day,name in [(0,'الأحد'),(1,'الاثنين'),(2,'الثلاثاء'),(3,'الأربعاء'),(4,'الخميس')] %}
 <div class="panel">
@@ -114,14 +119,17 @@ summary{cursor:pointer;color:#cbe0ff;font-weight:600}details form{margin-top:14p
 {% for i in range(4) %}<label>عضو {{i+1}}<input name="member{{i+1}}" required></label>{% endfor %}
 </div><button>حفظ التعديل الخاص</button></form>
 </div>
+{% endif %}
 <div class="panel" style="margin-top:18px"><h2>المناوبات القادمة</h2>
 {% for shift in shifts %}
 <div class="shift"><div class="shift-head"><span class="day">{{shift.date}}</span><span class="pill {{'ok' if shift.complete else 'warn'}}">{{'جاهزة' if shift.complete else ('ملغاة' if shift.cancelled else 'غير مكتملة')}}</span></div>
 <div class="hint">{{shift.names|join(' · ')}}</div>
+{% if not shift_sheet_enabled %}
 <form action="/shifts/cancel" method="post" style="margin-top:10px" class="right">
 <input type="hidden" name="csrf" value="{{csrf}}"><input type="hidden" name="shift_date" value="{{shift.date}}">
 <input type="hidden" name="cancel" value="{{'false' if shift.cancelled else 'true'}}">
 <button>{{'إلغاء الإلغاء' if shift.cancelled else 'إلغاء المناوبة'}}</button></form>
+{% endif %}
 </div>{% endfor %}
 </div>
 </section>
