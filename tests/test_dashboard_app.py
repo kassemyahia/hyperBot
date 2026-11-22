@@ -27,7 +27,11 @@ class DashboardTests(unittest.TestCase):
         self.module = module
         self.store = ShiftStore(Path(self.temp.name) / "test.db")
         self.repo = SimpleNamespace(list_candidates=lambda **kw: [], list=lambda: [])
-        self.settings = SimpleNamespace(source_chat_username="Hyper_Vault")
+        self.settings = SimpleNamespace(
+            source_chat_username="Hyper_Vault",
+            shift_timezone="Asia/Damascus", shift_sheet_id=None,
+            shift_group_chat_id=None,
+        )
         self.context = patch.object(
             module, "service_context",
             lambda: (self.settings, self.repo, None, self.store),
