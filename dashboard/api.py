@@ -13,6 +13,7 @@ from typing import Literal
 from urllib.parse import urlsplit
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
@@ -66,6 +67,11 @@ def create_app():
     app = FastAPI(title="Hyperdash API", docs_url=None, redoc_url=None, openapi_url=None)
     app.add_middleware(CORSMiddleware, allow_origins=[origin], allow_credentials=False,
                        allow_methods=["GET", "POST"], allow_headers=["Authorization", "Content-Type"])
+    @app.exception_handler(RequestValidationError)
+    async def invalid_request(request: Request, exc: RequestValidationError):
+        # Never echo malformed login passwords or other submitted input.
+        return JSONResponse({"detail": "Invalid request payload"}, status_code=422)
+
     guard = threading.Lock()
     writes = threading.Lock()
     sessions: dict[str, float] = {}
