@@ -68,3 +68,11 @@ def test_api_disabled_without_allowed_origin():
     with patch.dict(os.environ, {"HYPERDASH_ALLOWED_ORIGIN": "*", "HYPERDASH_PASSWORD": PASSWORD}):
         with pytest.raises(RuntimeError):
             create_app()
+
+
+def test_invalid_password_payload_is_not_echoed(client):
+    password = "sensitive-" + "x" * 600
+    response = client.post("/api/v1/login", json={"password": password})
+    assert response.status_code == 422
+    assert password not in response.text
+    assert response.json()["detail"] == "Invalid request payload"
