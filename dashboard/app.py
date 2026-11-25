@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from bot.config import CatalogSettings, Settings, _load_dotenv
@@ -43,6 +44,7 @@ app.add_middleware(
     https_only=os.getenv("DASHBOARD_SECURE_COOKIES", "false").lower() == "true",
 )
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+app.mount("/static/dashboard", StaticFiles(directory=str(Path(__file__).parent / "static")), name="dashboard-static")
 LOGIN_FAILURES: dict[str, tuple[int, float]] = {}
 
 

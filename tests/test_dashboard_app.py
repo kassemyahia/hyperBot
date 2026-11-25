@@ -58,6 +58,24 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(page.status_code, 200)
         self.assertIn("لوحة إدارة", page.text)
 
+    def test_branded_templates_and_local_assets(self):
+        login = self.client.get("/login")
+        self.assertIn("data-theme-toggle", login.text)
+        self.assertIn("/static/dashboard/hyper-logo.png", login.text)
+        css = self.client.get("/static/dashboard/theme.css")
+        self.assertEqual(css.status_code, 200)
+        self.assertIn("#e2a425", css.text)
+        self.assertIn("#2b3439", css.text)
+        self.assertEqual(self.client.get("/static/dashboard/theme.js").status_code, 200)
+        self.assertEqual(self.client.get("/static/dashboard/hyper-logo.png").status_code, 200)
+        self.assertEqual(self.client.get("/static/dashboard/cairo.ttf").status_code, 200)
+        self.client.post("/login", data={"passphrase": "local-long-test-password-only"})
+        dashboard = self.client.get("/")
+        self.assertEqual(dashboard.status_code, 200)
+        self.assertIn("data-theme-toggle", dashboard.text)
+        self.assertIn('id="shift-calendar"', dashboard.text)
+        self.assertIn('action="/files/reconcile"', dashboard.text)
+
     def test_csrf_rejects_unauthorized_mutation(self):
         self.client.post("/login", data={"passphrase": "local-long-test-password-only"})
         response = self.client.post("/shifts/weekly", data={
