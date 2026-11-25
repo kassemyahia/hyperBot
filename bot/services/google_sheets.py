@@ -97,6 +97,12 @@ class GoogleSheetsCatalog:
             logger.warning("Google Sheets catalog read failed: %s", type(exc).__name__)
             raise SheetsError("Unable to read Google Sheets catalog") from exc
 
+    def read_rows(self, sheet_name: str) -> list[list[str]]:
+        """Read an arbitrary worksheet without modifying its columns or cells."""
+        if not sheet_name or any(char in sheet_name for char in ("'", "!", "\\n")):
+            raise ValueError("Invalid worksheet name")
+        return self._read(sheet_name)
+
     def _ensure_columns(self, sheet_name: str, values: list[list[str]]) -> tuple[list[str], list[list[str]]]:
         headers = list(values[0]) if values else []
         positions = _positions(headers)

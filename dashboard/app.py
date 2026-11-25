@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from bot.config import CatalogSettings, Settings, _load_dotenv
@@ -24,7 +25,8 @@ from bot.services.catalog_reconciliation import reconcile_catalog, source_url
 from bot.services.file_registry import FileRegistry
 from bot.services.google_sheets import GoogleSheetsCatalog
 from bot.services.review import ReviewService
-from bot.services.shift_schedule import ShiftStore, day_index, format_reminder
+from bot.services.shift_schedule import ShiftStore, Shift, day_index, format_reminder
+from bot.services.shift_sheet import SheetShiftSchedule
 
 _load_dotenv()
 password = os.getenv("DASHBOARD_PASSWORD", "")
@@ -42,6 +44,7 @@ app.add_middleware(
     https_only=os.getenv("DASHBOARD_SECURE_COOKIES", "false").lower() == "true",
 )
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+app.mount("/static/dashboard", StaticFiles(directory=str(Path(__file__).parent / "static")), name="dashboard-static")
 LOGIN_FAILURES: dict[str, tuple[int, float]] = {}
 
 
@@ -66,6 +69,16 @@ def session(request: Request, csrf: str | None = None) -> None:
 
 def redirect(message: str = "") -> RedirectResponse:
     return RedirectResponse(url="/?notice=" + quote(message[:180]), status_code=303)
+
+
+def require_local_shift_mode() -> None:
+    """Prevent local shift writes while the Google Sheet is authoritative."""
+    _load_dotenv()
+    if os.getenv("SHIFT_SHEET_ID", "").strip():
+        raise HTTPException(
+            status_code=409,
+            detail="Shift assignments are read-only here; edit the configured Google Sheet",
+        )
 
 
 @app.get("/login", response_class=HTMLResponse)
@@ -122,15 +135,38 @@ def home(request: Request, notice: str = ""):
             "source_url": source_url(settings.source_chat_username, m.topic_id, m.message_id)
             if settings.source_chat_username else ""
         })
-    today = datetime.now(ZoneInfo("Asia/Damascus")).date()
-    shifts = store.upcoming(today, 14)
+    today = datetime.now(ZoneInfo(settings.shift_timezone)).date()
+    shift_sheet_enabled = bool(settings.shift_sheet_id)
+    shift_sheet_error = None
+    if shift_sheet_enabled:
+        try:
+            assert settings.shift_sheet_year is not None
+            shift_source = SheetShiftSchedule(
+                settings.shift_sheet_id, settings.google_application_credentials,
+                sheet_name=settings.shift_sheet_tab,
+                starting_year=settings.shift_sheet_year,
+            )
+            shifts = [
+                shift for shift_date, shift in sorted(shift_source.load().items())
+                if shift_date >= today
+            ][:30]
+        except Exception as exc:
+            shifts = []
+            shift_sheet_error = type(exc).__name__
+    else:
+        shifts = store.upcoming(today, 14)
     return templates.TemplateResponse(request, "dashboard.html", {
         "notice": notice, "csrf": request.session["csrf"],
         "candidates": candidates, "entries": entries,
         "records": repo.list()[:100], "shifts": shifts,
         "weekly": store.get_weekly(), "history": store.history(),
         "today": today, "sheet_error": sheet_error,
-        "group_configured": bool(os.getenv("SHIFT_GROUP_CHAT_ID")),
+        "shift_sheet_enabled": shift_sheet_enabled,
+        "shift_sheet_error": shift_sheet_error,
+        "shift_sheet_url": ("https://docs.google.com/spreadsheets/d/"
+                            + settings.shift_sheet_id + "/edit")
+                           if settings.shift_sheet_id else "",
+        "group_configured": bool(settings.shift_group_chat_id),
     })
 
 
@@ -246,6 +282,7 @@ def save_weekly(request: Request, csrf: str = Form(...), day: int = Form(...),
                 member1: str = Form(...), member2: str = Form(...),
                 member3: str = Form(...), member4: str = Form(...)):
     session(request, csrf)
+    require_local_shift_mode()
     _, _, _, store = service_context()
     try:
         store.set_weekly(day, [coach, co_coach, member1, member2, member3, member4])
@@ -260,6 +297,7 @@ def save_override(request: Request, csrf: str = Form(...), shift_date: date = Fo
                   member1: str = Form(...), member2: str = Form(...),
                   member3: str = Form(...), member4: str = Form(...)):
     session(request, csrf)
+    require_local_shift_mode()
     _, _, _, store = service_context()
     try:
         store.set_override(shift_date, [coach, co_coach, member1, member2, member3, member4])
@@ -272,6 +310,7 @@ def save_override(request: Request, csrf: str = Form(...), shift_date: date = Fo
 def cancel_shift(request: Request, csrf: str = Form(...),
                  shift_date: date = Form(...), cancel: bool = Form(True)):
     session(request, csrf)
+    require_local_shift_mode()
     _, _, _, store = service_context()
     try:
         (store.cancel if cancel else store.uncancel)(shift_date)
