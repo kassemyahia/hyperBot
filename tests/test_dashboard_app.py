@@ -46,7 +46,10 @@ class DashboardTests(unittest.TestCase):
         self.temp.cleanup()
 
     def test_login_requires_password(self):
-        self.assertEqual(self.client.get("/").status_code, 401)
+        initial = self.client.get("/")
+        self.assertEqual(initial.status_code, 303)
+        self.assertEqual(initial.headers["location"], "/login")
+        # The login form is public; no catalog details are exposed pre-auth.
         self.assertEqual(self.client.get("/login").status_code, 200)
         self.assertEqual(self.client.post("/login", data={
             "passphrase": "wrongpassword"

@@ -110,6 +110,11 @@ def logout(request: Request, csrf: str = Form(...)):
 
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request, notice: str = ""):
+    # Human-facing page: direct signed-out visitors to the login form.
+    # Other protected endpoints keep their strict 401/403 behavior.
+    if (not request.session.get("auth")
+            or time.time() - float(request.session.get("login_at", 0)) > 14400):
+        return RedirectResponse(url="/login", status_code=303)
     session(request)
     return templates.TemplateResponse(request, "dashboard.html", {
         **snapshot(*service_context()), "notice": notice, "csrf": request.session["csrf"],
