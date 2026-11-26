@@ -1,6 +1,6 @@
 # HyperBot private management dashboard and shift reminders
 
-This feature is developed on `feature/admin-dashboard-shifts`, not production `main`.
+This dashboard was originally developed on `feature/admin-dashboard-shifts`; it is now included in `main`.
 Existing `file_records`, public tokens, source messages and the published website are not modified by deployment setup.
 
 ## Install
@@ -58,6 +58,47 @@ CATALOG_AUTO_REGISTER=true
 ```
 
 The bot then checks every 5 minutes. Only exact, unique, configured-source message links are accepted; filename similarity alone never triggers unattended publication. Automatic reconciliation requires the source message to have been discovered already by the bot or the historical importer. If the bot was offline during upload, run `python -m scripts.import_group --full-scan --topic-id <id>` once. Unmatched, duplicated and unverified sources remain unavailable. The automatic publishing policy is opt-in because editing the Google Sheet then becomes sufficient authorization to publish the selected source.
+
+## Shifts — authoritative Google Sheet (recommended)
+
+Set the following variables in the bot and dashboard environment:
+
+```dotenv
+SHIFT_SHEET_ID=18MQBP1P0-bdvnDMQE09yS3OzD5jrGhDIqG-AJI1Mspo
+SHIFT_SHEET_TAB=Hyper Shifts
+SHIFT_SHEET_YEAR=2026
+SHIFT_TIMEZONE=Asia/Damascus
+SHIFT_GROUP_CHAT_ID=-100YOUR_SEPARATE_REMINDER_GROUP
+```
+
+This is a **separate sheet** from `GOOGLE_SHEET_ID`, which remains the files/catalog
+spreadsheet. Share this shift spreadsheet with the Google service-account email
+from `GOOGLE_APPLICATION_CREDENTIALS` as **Viewer**. The bot needs read access,
+not edit access.
+
+The `Hyper Shifts` tab uses a heading on row 5 and dated shifts from row 6
+onward. Column B contains the date in `(day/month)` format; C is Coach, D is
+Co-Coach and E–H are the four members. The first calendar year is explicitly
+configured because the cells omit it. December-to-January rollover is supported.
+The parser validates dated weekday labels and refuses duplicated dates.
+
+When `SHIFT_SHEET_ID` is set, this sheet is the **only source of assignments**:
+SQLite weekly rosters and local overrides are not consulted, and dashboard
+editing actions return HTTP 409. The dashboard becomes a read-only view of
+upcoming dated sheet assignments. Edit the shared spreadsheet itself to change
+the roster. When the bot checks at 21:00–21:15 Damascus time, it reads a fresh
+snapshot **before** claiming that date's send in the existing SQLite reminder
+ledger. A Google Sheets failure does not trigger an outdated local fallback.
+Missing or incomplete dated shifts are skipped, not published.
+
+Telegram usernames are mentioned only when syntactically valid. Ordinary Arabic
+names remain plain text; malformed `@...` handles are displayed literally
+rather than creating unintended partial mentions. Fix those handles in the
+spreadsheet to make them clickable.
+
+To use the legacy local weekly editor instead, leave `SHIFT_SHEET_ID` unset.
+This feature makes no changes to the shift spreadsheet, catalog spreadsheets,
+or their formatting.
 
 ## Shifts — Sundays through Thursdays
 

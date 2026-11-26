@@ -161,6 +161,9 @@ class Settings:
     source_chat_username: str | None = None
     shift_group_chat_id: int | None = None
     shift_timezone: str = "Asia/Damascus"
+    shift_sheet_id: str | None = None
+    shift_sheet_tab: str = "Hyper Shifts"
+    shift_sheet_year: int | None = None
     catalog_reconcile_enabled: bool = False
     catalog_auto_register: bool = False
 
@@ -184,6 +187,17 @@ class Settings:
                 "Missing required environment variable: SOURCE_CHAT_ID "
                 "(SOURCE_CHANNEL_ID is accepted for compatibility)"
             )
+        shift_sheet_id = os.getenv("SHIFT_SHEET_ID", "").strip() or None
+        sheet_year_raw = os.getenv("SHIFT_SHEET_YEAR", "").strip()
+        try:
+            shift_sheet_year = int(sheet_year_raw) if sheet_year_raw else None
+        except ValueError as exc:
+            raise ConfigurationError("SHIFT_SHEET_YEAR must be a four-digit year") from exc
+        if shift_sheet_id and not (shift_sheet_year and 2000 <= shift_sheet_year <= 2100):
+            raise ConfigurationError("SHIFT_SHEET_YEAR is required with SHIFT_SHEET_ID")
+        shift_sheet_tab = os.getenv("SHIFT_SHEET_TAB", "Hyper Shifts").strip()
+        if shift_sheet_id and not shift_sheet_tab:
+            raise ConfigurationError("SHIFT_SHEET_TAB cannot be blank")
         try:
             source_chat_id = int(source_raw)
             api_id = int(os.getenv("TELEGRAM_API_ID", "0")) or None
@@ -234,6 +248,9 @@ class Settings:
             ).strip().lstrip("@") or None,
             shift_group_chat_id=shift_group_chat_id,
             shift_timezone=os.getenv("SHIFT_TIMEZONE", "Asia/Damascus").strip(),
+            shift_sheet_id=shift_sheet_id,
+            shift_sheet_tab=shift_sheet_tab,
+            shift_sheet_year=shift_sheet_year,
             catalog_reconcile_enabled=_boolean("CATALOG_RECONCILE_ENABLED"),
             catalog_auto_register=_boolean("CATALOG_AUTO_REGISTER"),
 

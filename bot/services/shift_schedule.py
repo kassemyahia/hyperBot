@@ -5,6 +5,7 @@ the existing SQLite database, not in APScheduler's in-memory job store.
 """
 from __future__ import annotations
 
+import asyncio
 import html
 import re
 import sqlite3
@@ -206,8 +207,16 @@ def format_reminder(when: date, shift: Shift) -> str:
     if not shift.complete or day_index(when) is None:
         raise ValueError("Cannot notify an incomplete or cancelled shift")
     day = DAY_NAMES_AR[day_index(when)]
-    def mention(username: str) -> str:
-        return "@" + html.escape(username, quote=False)
+    def mention(name: str) -> str:
+        """Tag valid usernames; preserve ordinary names without fake mentions."""
+        value = name.strip()
+        candidate = value.lstrip("@")
+        if USERNAME.fullmatch(candidate):
+            return "@" + html.escape(candidate, quote=False)
+        if value.startswith("@"):
+            # Avoid accidentally tagging a partial username such as @user.name.
+            return "<code>" + html.escape(value, quote=False) + "</code>"
+        return html.escape(value, quote=False)
     return (
         "📢 <b>تذكير بمناوبة يوم " + day + "</b>\n\n"
         "👨‍🏫 <b>الكوتش:</b> " + mention(shift.names[0]) + "\n"
@@ -220,13 +229,17 @@ def format_reminder(when: date, shift: Shift) -> str:
 
 async def check_shift_reminder(context, *, store: ShiftStore, group_id: int,
                                timezone: str = "Asia/Damascus",
-                               now: datetime | None = None) -> bool:
+                               now: datetime | None = None,
+                               sheet_schedule: object | None = None) -> bool:
     """Tick every minute. Send only inside 21:00–21:15 local time."""
     local_now = (now or datetime.now(ZoneInfo(timezone))).astimezone(ZoneInfo(timezone))
     if local_now.hour != 21 or local_now.minute > 15:
         return False
     when = local_now.date() + timedelta(days=1)
-    shift = store.effective(when)
+    # Read the live roster before claiming a send. A Sheets outage cannot
+    # consume a reminder or trigger a fallback to stale local assignments.
+    shift = (await asyncio.to_thread(sheet_schedule.effective, when)
+             if sheet_schedule is not None else store.effective(when))
     if not shift.complete or not store.claim(when, local_now):
         return False
     try:

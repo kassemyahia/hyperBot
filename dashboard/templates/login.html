@@ -1,17 +1,9 @@
 <!doctype html><html lang="ar" dir="rtl"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow"><title>HyperBot · تسجيل الدخول</title>
-<style>
-*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 40% 0%,#203d75 0%,#101c34 36%,#080e1c 85%);font-family:system-ui,Tahoma,sans-serif;color:#eaf1ff;display:grid;place-items:center;padding:24px}
-main{width:min(420px,100%);background:#121f34;border:1px solid #304668;border-radius:20px;padding:32px;box-shadow:0 30px 65px #03070c90}
-.logo{width:50px;height:50px;display:grid;place-items:center;background:#3069cb;border-radius:14px;font-weight:900;font-size:1.4rem}
-h1{font-size:1.6rem;margin:18px 0 6px}p{color:#9fb2ce;margin:0 0 27px}
-label{display:block;margin-bottom:9px}input{background:#0c1829;border:1px solid #365074;color:white;width:100%;font:inherit;padding:13px;border-radius:11px}
-button{width:100%;background:#3a77df;border:0;color:white;font:inherit;font-weight:700;padding:14px;border-radius:11px;margin-top:20px;cursor:pointer}
-.error{color:#ffadad;margin-top:10px}
-small{display:block;margin-top:22px;color:#8697b2}
-</style></head><body><main>
-<div class="logo">H</div><h1>لوحة إدارة HyperBot</h1><p>ملفات Hyper Vault ومناوبات الفريق في مكان واحد</p>
+<link rel="stylesheet" href="{{ url_for('dashboard-static', path='theme.css') }}">
+<script src="{{ url_for('dashboard-static', path='theme.js') }}"></script></head><body class="login-page"><main class="login-card">
+<div class="login-top"><div class="brand"><div class="logo-box"><img src="{{ url_for('dashboard-static', path='hyper-logo.png') }}" alt="هايبر تيم"></div><div class="brand-copy"><span class="brand-name" dir="ltr">HYPERBOT</span><small>لوحة إدارة الفريق · HYPER TEAM</small></div></div><button class="theme-toggle" type="button" data-theme-toggle aria-label="تفعيل الوضع النهاري" title="تبديل المظهر">☀</button></div><h1>لوحة إدارة HyperBot</h1><p>ملفات Hyper Vault ومناوبات الفريق في مكان واحد</p>
 <form action="/login" method="post"><label for="pass">كلمة مرور الإدارة</label>
 <input id="pass" name="passphrase" type="password" autocomplete="current-password" required autofocus>
 {% if error %}<div class="error">{{error}}</div>{% endif %}

@@ -51,6 +51,7 @@ from bot.services.review import ReviewService
 from bot.services.rate_limit import RateLimiter
 from bot.services.registration_drafts import RegistrationDraftStore
 from bot.services.shift_schedule import ShiftStore, check_shift_reminder
+from bot.services.shift_sheet import SheetShiftSchedule
 from bot.services.catalog_reconciliation import reconcile_catalog
 from bot.utils.logging import configure_logging
 
@@ -227,12 +228,22 @@ def build_application(settings: Settings) -> Application:
                 "Install python-telegram-bot[job-queue] for shift reminders"
             )
         shift_store = ShiftStore(settings.database_path)
+        shift_sheet = None
+        if settings.shift_sheet_id:
+            assert settings.shift_sheet_year is not None
+            shift_sheet = SheetShiftSchedule(
+                settings.shift_sheet_id, settings.google_application_credentials,
+                sheet_name=settings.shift_sheet_tab,
+                starting_year=settings.shift_sheet_year,
+            )
+            logger.info("Shift assignments will be read from the configured Google Sheet")
 
         async def shift_tick(context):
             try:
                 await check_shift_reminder(
                     context, store=shift_store, group_id=settings.shift_group_chat_id,
                     timezone=settings.shift_timezone,
+                    sheet_schedule=shift_sheet,
                 )
             except Exception:
                 logger.exception("Scheduled shift notification failed")
