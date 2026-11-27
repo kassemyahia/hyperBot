@@ -84,7 +84,8 @@ not used as access policy.
 | `SOURCE_CHAT_USERNAME` | Optional public username used only to validate public source URLs |
 | `SOURCE_CHANNEL_ID` | Deprecated fallback accepted during migration |
 | `ADMIN_USER_IDS` | Comma-separated Telegram **user** IDs; checked on every command/callback |
-| `DOWNLOAD_REQUEST_CHAT_ID` | Destination for existing user download requests |
+| `DOWNLOAD_REQUEST_CHAT_ID` | Numeric destination chat for user download requests |
+| `DOWNLOAD_REQUEST_TOPIC_ID` | Optional positive forum topic ID; blank preserves existing routing, 1 means General |
 | `COMPLAINT_RECIPIENT_CHAT_ID` | Destination for anonymous complaints |
 | `DATABASE_URL` | `sqlite:///data/hyperbot.db` by default |
 | `TELEGRAM_API_ID` / `TELEGRAM_API_HASH` | User API credentials for Telethon import |
@@ -400,3 +401,7 @@ scripts/sync_catalog.py              explicit ID initialization and sync CLI
 scripts/export_links.py              secret-free JSON/CSV export
 tests/                               mocked regression and integration tests
 ```
+
+### Download request forum routing
+
+Set `DOWNLOAD_REQUEST_CHAT_ID` to the numeric group ID and `DOWNLOAD_REQUEST_TOPIC_ID` to the numeric topic ID separately (never a combined `chat_topic` string). Topic 1 targets General by omitting the Bot API thread parameter. Other positive IDs are sent as `message_thread_id`. The bot must be permitted to send to the selected topic. If a send fails, it reports failure to the requester and does not retry into a different topic. No database migration is needed.

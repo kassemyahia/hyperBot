@@ -9,7 +9,7 @@ from bot.config import ConfigurationError, Settings
 
 
 class ShiftGroupConfigTests(unittest.TestCase):
-    def settings_with(self, value):
+    def settings_with(self, value, **extra):
         env = {
             "BOT_TOKEN": "test-only",
             "BOT_USERNAME": "HyperTeamITE_Bot",
@@ -22,6 +22,7 @@ class ShiftGroupConfigTests(unittest.TestCase):
         }
         if value is not None:
             env["SHIFT_GROUP_CHAT_ID"] = value
+        env.update(extra)
         with patch.dict("os.environ", env, clear=True):
             return Settings.from_env(dotenv_path=Path("/nonexistent-shift-test.env"))
 
@@ -48,3 +49,20 @@ class ShiftGroupConfigTests(unittest.TestCase):
     def test_source_group_cannot_be_shift_destination(self):
         with self.assertRaises(ConfigurationError):
             self.settings_with("-1001234567890")
+
+
+    def test_topic_and_time(self):
+        settings = self.settings_with("-1009876543210", SHIFT_TOPIC_ID="353", SHIFT_REMINDER_TIME="18:00")
+        self.assertEqual(settings.shift_topic_id, 353)
+        self.assertEqual(settings.shift_reminder_time, "18:00")
+        self.assertEqual(self.settings_with(None).shift_reminder_time, "18:00")
+
+    def test_invalid_topic_or_time(self):
+        for value in ("0", "-1", "invalid"):
+            with self.subTest(topic=value), self.assertRaises(ConfigurationError):
+                self.settings_with("-1009876543210", SHIFT_TOPIC_ID=value)
+        with self.assertRaises(ConfigurationError):
+            self.settings_with("0", SHIFT_TOPIC_ID="353")
+        for value in ("24:00", "18:60", "6:00", "", "invalid"):
+            with self.subTest(time=value), self.assertRaises(ConfigurationError):
+                self.settings_with("-1009876543210", SHIFT_REMINDER_TIME=value)

@@ -1,8 +1,12 @@
 import unittest
+from dataclasses import replace
+from pathlib import Path
+from unittest.mock import patch
+from telegram.error import BadRequest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-from bot.config import Settings
+from bot.config import ConfigurationError, Settings
 from bot.handlers.flows import create_complaint_handler, create_request_handler
 
 
@@ -30,6 +34,7 @@ class ExistingFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(-1002, context.bot.send_message.await_args.args[0])
         self.assertIn("كورس بايثون", context.bot.send_message.await_args.args[1])
         message.reply_text.assert_awaited_once()
+        self.assertNotIn('message_thread_id', context.bot.send_message.await_args.kwargs)
 
     async def test_complaint_does_not_reveal_sender_identity(self):
         update, _ = update_with("اقتراح مجهول")
@@ -40,3 +45,54 @@ class ExistingFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("اقتراح مجهول", outgoing)
         self.assertNotIn("999", outgoing)
         self.assertNotIn("secret", outgoing)
+
+
+    async def test_download_request_uses_explicit_forum_topic(self):
+        update, message = update_with("طلب جديد")
+        context = SimpleNamespace(bot=SimpleNamespace(send_message=AsyncMock()))
+        await create_request_handler(replace(settings(), download_request_topic_id=42))(update, context)
+        self.assertEqual({"message_thread_id": 42}, context.bot.send_message.await_args.kwargs)
+        self.assertIn("تم استلام طلبك", message.reply_text.await_args.args[0])
+
+    async def test_general_topic_omits_thread_parameter(self):
+        update, _ = update_with("طلب جديد")
+        context = SimpleNamespace(bot=SimpleNamespace(send_message=AsyncMock()))
+        await create_request_handler(replace(settings(), download_request_topic_id=1))(update, context)
+        self.assertEqual({}, context.bot.send_message.await_args.kwargs)
+
+    async def test_failed_topic_does_not_fall_back_to_general(self):
+        update, message = update_with("طلب جديد")
+        context = SimpleNamespace(bot=SimpleNamespace(send_message=AsyncMock(
+            side_effect=BadRequest("Message thread not found"))))
+        await create_request_handler(replace(settings(), download_request_topic_id=42))(update, context)
+        context.bot.send_message.assert_awaited_once()
+        self.assertIn("تعذر استلام الطلب", message.reply_text.await_args.args[0])
+
+
+class DownloadTopicConfigTests(unittest.TestCase):
+    def load(self, topic=None, chat="-1002"):
+        env = {"BOT_TOKEN": "test", "BOT_USERNAME": "test_bot",
+               "SOURCE_CHAT_ID": "-1001", "DOWNLOAD_REQUEST_CHAT_ID": chat,
+               "COMPLAINT_RECIPIENT_CHAT_ID": "300", "ADMIN_USER_IDS": "1"}
+        if topic is not None:
+            env["DOWNLOAD_REQUEST_TOPIC_ID"] = topic
+        with patch.dict("os.environ", env, clear=True):
+            return Settings.from_env(dotenv_path=Path("/nonexistent-download-topic-test.env"))
+
+    def test_optional_topic(self):
+        for value in (None, "", "  "):
+            with self.subTest(value=value):
+                self.assertIsNone(self.load(value).download_request_topic_id)
+
+    def test_positive_topic(self):
+        self.assertEqual(1, self.load("1").download_request_topic_id)
+        self.assertEqual(42, self.load("42").download_request_topic_id)
+
+    def test_invalid_topic(self):
+        for value in ("0", "-1", "invalid", "-1002_1"):
+            with self.subTest(value=value), self.assertRaises(ConfigurationError):
+                self.load(value)
+
+    def test_topic_requires_group_chat(self):
+        with self.assertRaises(ConfigurationError):
+            self.load("42", "1234")

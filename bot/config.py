@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -166,6 +167,9 @@ class Settings:
     shift_sheet_year: int | None = None
     catalog_reconcile_enabled: bool = False
     catalog_auto_register: bool = False
+    download_request_topic_id: int | None = None
+    shift_topic_id: int | None = None
+    shift_reminder_time: str = "18:00"
 
     @classmethod
     def from_env(cls, *, dotenv_path: Path = Path(".env")) -> "Settings":
@@ -218,11 +222,34 @@ class Settings:
             shift_group_chat_id >= 0 or shift_group_chat_id == source_chat_id
         ):
             raise ConfigurationError("SHIFT_GROUP_CHAT_ID must be a separate, negative group ID")
+        shift_topic_raw = os.getenv("SHIFT_TOPIC_ID", "").strip()
+        try:
+            shift_topic_id = int(shift_topic_raw) if shift_topic_raw else None
+        except ValueError as exc:
+            raise ConfigurationError("SHIFT_TOPIC_ID must be a positive integer or blank") from exc
+        if shift_topic_id is not None and (shift_topic_id < 1 or shift_group_chat_id is None):
+            raise ConfigurationError("SHIFT_TOPIC_ID requires a positive topic ID and a configured shift group")
+        shift_reminder_time = os.getenv("SHIFT_REMINDER_TIME", "18:00").strip()
+        if not re.fullmatch(r"(?:[01][0-9]|2[0-3]):[0-5][0-9]", shift_reminder_time):
+            raise ConfigurationError("SHIFT_REMINDER_TIME must use 24-hour HH:MM format")
+        download_request_chat_id = _integer("DOWNLOAD_REQUEST_CHAT_ID")
+        topic_raw = os.getenv("DOWNLOAD_REQUEST_TOPIC_ID", "").strip()
+        try:
+            download_request_topic_id = int(topic_raw) if topic_raw else None
+        except ValueError as exc:
+            raise ConfigurationError("DOWNLOAD_REQUEST_TOPIC_ID must be a positive integer or blank") from exc
+        if download_request_topic_id is not None and (
+            download_request_topic_id < 1 or download_request_chat_id >= 0
+        ):
+            raise ConfigurationError(
+                "DOWNLOAD_REQUEST_TOPIC_ID requires a positive topic ID and a negative group chat ID"
+            )
         return cls(
             bot_token=_required("BOT_TOKEN"),
             bot_username=username,
             source_channel_id=source_chat_id,
-            download_request_chat_id=_integer("DOWNLOAD_REQUEST_CHAT_ID"),
+            download_request_chat_id=download_request_chat_id,
+            download_request_topic_id=download_request_topic_id,
             complaint_recipient_chat_id=_integer("COMPLAINT_RECIPIENT_CHAT_ID"),
             admin_user_ids=_integer_set("ADMIN_USER_IDS"),
             database_url=database_url,
@@ -247,6 +274,8 @@ class Settings:
                 "SOURCE_CHAT_USERNAME", ""
             ).strip().lstrip("@") or None,
             shift_group_chat_id=shift_group_chat_id,
+            shift_topic_id=shift_topic_id,
+            shift_reminder_time=shift_reminder_time,
             shift_timezone=os.getenv("SHIFT_TIMEZONE", "Asia/Damascus").strip(),
             shift_sheet_id=shift_sheet_id,
             shift_sheet_tab=shift_sheet_tab,

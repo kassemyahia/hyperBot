@@ -243,6 +243,8 @@ def build_application(settings: Settings) -> Application:
                 await check_shift_reminder(
                     context, store=shift_store, group_id=settings.shift_group_chat_id,
                     timezone=settings.shift_timezone,
+                    topic_id=settings.shift_topic_id,
+                    reminder_time=settings.shift_reminder_time,
                     sheet_schedule=shift_sheet,
                 )
             except Exception:

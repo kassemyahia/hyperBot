@@ -117,7 +117,7 @@ class SheetReminderTests(unittest.IsolatedAsyncioTestCase):
         source = SheetShiftSchedule("id", None, starting_year=2026, catalog=catalog)
         bot = FakeBot()
         context = SimpleNamespace(bot=bot)
-        now = datetime(2026, 11, 14, 21, 0, tzinfo=ZoneInfo("Asia/Damascus"))
+        now = datetime(2026, 11, 14, 18, 0, tzinfo=ZoneInfo("Asia/Damascus"))
         with self.assertRaises(SheetsError):
             await check_shift_reminder(
                 context, store=self.store, group_id=-1001234,

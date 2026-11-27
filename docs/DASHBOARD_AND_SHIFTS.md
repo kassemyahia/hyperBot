@@ -18,6 +18,8 @@ DASHBOARD_SESSION_SECRET=generate-a-random-32-plus-character-value
 DASHBOARD_SECURE_COOKIES=false
 SOURCE_CHAT_USERNAME=Hyper_Vault
 SHIFT_GROUP_CHAT_ID=
+SHIFT_TOPIC_ID=
+SHIFT_REMINDER_TIME=18:00
 SHIFT_TIMEZONE=Asia/Damascus
 CATALOG_RECONCILE_ENABLED=false
 CATALOG_AUTO_REGISTER=false
@@ -69,6 +71,8 @@ SHIFT_SHEET_TAB=Hyper Shifts
 SHIFT_SHEET_YEAR=2026
 SHIFT_TIMEZONE=Asia/Damascus
 SHIFT_GROUP_CHAT_ID=-100YOUR_SEPARATE_REMINDER_GROUP
+SHIFT_TOPIC_ID=353
+SHIFT_REMINDER_TIME=18:00
 ```
 
 This is a **separate sheet** from `GOOGLE_SHEET_ID`, which remains the files/catalog
@@ -86,7 +90,7 @@ When `SHIFT_SHEET_ID` is set, this sheet is the **only source of assignments**:
 SQLite weekly rosters and local overrides are not consulted, and dashboard
 editing actions return HTTP 409. The dashboard becomes a read-only view of
 upcoming dated sheet assignments. Edit the shared spreadsheet itself to change
-the roster. When the bot checks at 21:00–21:15 Damascus time, it reads a fresh
+the roster. When the bot checks at 18:00–18:15 Damascus time, it reads a fresh
 snapshot **before** claiming that date's send in the existing SQLite reminder
 ledger. A Google Sheets failure does not trigger an outdated local fallback.
 Missing or incomplete dated shifts are skipped, not published.
@@ -104,11 +108,11 @@ or their formatting.
 
 1. Create a separate Telegram group for shift notifications and add HyperBot with permission to post messages.
 2. Set its numeric chat ID as `SHIFT_GROUP_CHAT_ID=-100...` in the bot's `.env`.
-3. Restart the bot so it installs the reminder job.
+3. Set optional `SHIFT_TOPIC_ID` to the forum topic (1 for General) and `SHIFT_REMINDER_TIME` to local HH:MM (default 18:00). Restart the bot so it installs the reminder job.
 4. From the dashboard, fill the 6 weekly roles for each day: coach, co-coach, 4 members. Each username is 5–32 Telegram-compatible characters and must be unique within its shift.
 5. Add date-specific overrides and cancellations in the dashboard as needed.
 
-Schedule: **21:00 Asia/Damascus the day before the shift**. This means Saturday evening for Sunday, through Wednesday evening for Thursday. The scheduler checks once per minute and has a 15-minute send window, skips incomplete/cancelled days, and records sends in SQLite. To avoid duplicate messages after uncertain Telegram network errors, those attempts are marked `uncertain` and **not** automatically retried. Check the shift group and decide manually if necessary.
+Default schedule: **18:00 Asia/Damascus the day before the shift**. This means Saturday evening for Sunday, through Wednesday evening for Thursday. The scheduler checks once per minute and has a 15-minute send window, skips incomplete/cancelled days, and records sends in SQLite. To avoid duplicate messages after uncertain Telegram network errors, those attempts are marked `uncertain` and **not** automatically retried. Check the shift group and decide manually if necessary.
 
 Telegram `@username` mentions work for users who have usernames. Names can change; verify membership and usernames before relying on mentions. The bot must stay online at reminder time; a powered-off laptop cannot execute jobs. Use an always-on service with a persistent SQLite disk and exactly **one** Telegram polling/scheduler instance.
 

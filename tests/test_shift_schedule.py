@@ -60,7 +60,7 @@ class ShiftStoreTests(unittest.TestCase):
 
     def test_reminder_ledger_claim_once(self):
         d = date(2026, 11, 15)
-        now = datetime(2026, 11, 14, 21, tzinfo=ZoneInfo("Asia/Damascus"))
+        now = datetime(2026, 11, 14, 18, tzinfo=ZoneInfo("Asia/Damascus"))
         self.assertTrue(self.store.claim(d, now))
         self.assertFalse(self.store.claim(d, now))
         self.store.finish(d, message_id=99)
@@ -72,7 +72,15 @@ class ShiftStoreTests(unittest.TestCase):
         self.store.set_weekly(0, SIX)
         result = format_reminder(d, self.store.effective(d))
         self.assertIn("@CoachOne", result)
-        self.assertIn("الأحد", result)
+        self.assertEqual(result, (
+            "🔔 تذكير بالمناوبة\n"
+            "<b>الكوتش:</b> @CoachOne\n"
+            "<b>مساعد الكوتش:</b> @CocoachTwo\n"
+            "<b>أعضاء المناوبة:</b>\n"
+            "@MemberThree\n@MemberFour\n@MemberFive\n@MemberSix\n"
+            "نذكّركم المناوبة غداً.\n"
+            "يرجى الالتزام بالموعد المحدد، وشكراً"
+        ))
         self.assertEqual(result.count("@"), 6)
 
 
@@ -99,7 +107,7 @@ class ShiftSchedulerTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_saturday_evening_sends_sunday_once(self):
         bot = FakeBot()
-        now = datetime(2026, 11, 14, 21, 0, tzinfo=ZoneInfo("Asia/Damascus"))
+        now = datetime(2026, 11, 14, 18, 0, tzinfo=ZoneInfo("Asia/Damascus"))
         context = SimpleNamespace(bot=bot)
         self.assertTrue(await check_shift_reminder(context, store=self.store,
                          group_id=-1001234, now=now))
@@ -112,9 +120,9 @@ class ShiftSchedulerTests(unittest.IsolatedAsyncioTestCase):
         bot = FakeBot()
         context = SimpleNamespace(bot=bot)
         for moment in [
-            datetime(2026, 11, 14, 20, 59, tzinfo=ZoneInfo("Asia/Damascus")),
-            datetime(2026, 11, 14, 21, 16, tzinfo=ZoneInfo("Asia/Damascus")),
-            datetime(2026, 11, 19, 21, 0, tzinfo=ZoneInfo("Asia/Damascus")),
+            datetime(2026, 11, 14, 17, 59, tzinfo=ZoneInfo("Asia/Damascus")),
+            datetime(2026, 11, 14, 18, 16, tzinfo=ZoneInfo("Asia/Damascus")),
+            datetime(2026, 11, 19, 18, 0, tzinfo=ZoneInfo("Asia/Damascus")),
         ]:
             self.assertFalse(await check_shift_reminder(context, store=self.store,
                              group_id=-1001234, now=moment))
@@ -123,9 +131,32 @@ class ShiftSchedulerTests(unittest.IsolatedAsyncioTestCase):
     async def test_uncertain_delivery_does_not_auto_retry(self):
         bot = FakeBot(fail=True)
         context = SimpleNamespace(bot=bot)
-        now = datetime(2026, 11, 14, 21, 0, tzinfo=ZoneInfo("Asia/Damascus"))
+        now = datetime(2026, 11, 14, 18, 0, tzinfo=ZoneInfo("Asia/Damascus"))
         with self.assertRaises(TimeoutError):
             await check_shift_reminder(context, store=self.store, group_id=-1001234, now=now)
         self.assertFalse(await check_shift_reminder(context, store=self.store,
                          group_id=-1001234, now=now))
         self.assertEqual(self.store.history()[0]["status"], "uncertain")
+
+
+    async def test_configured_topic_and_time(self):
+        bot = FakeBot()
+        context = SimpleNamespace(bot=bot)
+        for hour, minute in [(17, 59), (18, 16), (21, 0)]:
+            self.assertFalse(await check_shift_reminder(context, store=self.store,
+                group_id=-1001234, topic_id=353, reminder_time="18:00",
+                now=datetime(2026, 11, 14, hour, minute, tzinfo=ZoneInfo("Asia/Damascus"))))
+        now = datetime(2026, 11, 14, 18, 0, tzinfo=ZoneInfo("Asia/Damascus"))
+        self.assertTrue(await check_shift_reminder(context, store=self.store,
+            group_id=-1001234, topic_id=353, reminder_time="18:00", now=now))
+        self.assertEqual(bot.sent[0]["message_thread_id"], 353)
+        self.assertFalse(await check_shift_reminder(context, store=self.store,
+            group_id=-1001234, topic_id=353, reminder_time="18:00", now=now))
+
+    async def test_custom_time_and_general_topic(self):
+        bot = FakeBot()
+        context = SimpleNamespace(bot=bot)
+        self.assertTrue(await check_shift_reminder(context, store=self.store,
+            group_id=-1001234, topic_id=1, reminder_time="19:50",
+            now=datetime(2026, 11, 14, 20, 5, tzinfo=ZoneInfo("Asia/Damascus"))))
+        self.assertNotIn("message_thread_id", bot.sent[0])

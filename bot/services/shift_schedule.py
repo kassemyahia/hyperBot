@@ -206,7 +206,6 @@ class ShiftStore:
 def format_reminder(when: date, shift: Shift) -> str:
     if not shift.complete or day_index(when) is None:
         raise ValueError("Cannot notify an incomplete or cancelled shift")
-    day = DAY_NAMES_AR[day_index(when)]
     def mention(name: str) -> str:
         """Tag valid usernames; preserve ordinary names without fake mentions."""
         value = name.strip()
@@ -218,22 +217,29 @@ def format_reminder(when: date, shift: Shift) -> str:
             return "<code>" + html.escape(value, quote=False) + "</code>"
         return html.escape(value, quote=False)
     return (
-        "📢 <b>تذكير بمناوبة يوم " + day + "</b>\n\n"
-        "👨‍🏫 <b>الكوتش:</b> " + mention(shift.names[0]) + "\n"
-        "🤝 <b>مساعد الكوتش:</b> " + mention(shift.names[1]) + "\n"
-        "👥 <b>أعضاء المناوبة:</b>\n" +
+        "🔔 تذكير بالمناوبة\n"
+        "<b>الكوتش:</b> " + mention(shift.names[0]) + "\n"
+        "<b>مساعد الكوتش:</b> " + mention(shift.names[1]) + "\n"
+        "<b>أعضاء المناوبة:</b>\n" +
         "\n".join(mention(name) for name in shift.names[2:]) +
-        "\n\n⏰ المناوبة غداً — يرجى تأكيد الجاهزية."
+        "\nنذكّركم المناوبة غداً.\n"
+        "يرجى الالتزام بالموعد المحدد، وشكراً"
     )
 
 
 async def check_shift_reminder(context, *, store: ShiftStore, group_id: int,
                                timezone: str = "Asia/Damascus",
                                now: datetime | None = None,
-                               sheet_schedule: object | None = None) -> bool:
-    """Tick every minute. Send only inside 21:00–21:15 local time."""
+                               sheet_schedule: object | None = None,
+                               topic_id: int | None = None,
+                               reminder_time: str = "18:00") -> bool:
+    """Tick every minute, within 15 minutes of the configured local time."""
     local_now = (now or datetime.now(ZoneInfo(timezone))).astimezone(ZoneInfo(timezone))
-    if local_now.hour != 21 or local_now.minute > 15:
+    hour, minute = map(int, reminder_time.split(":"))
+    start = hour * 60 + minute
+    current = local_now.hour * 60 + local_now.minute
+    # Do not cross midnight: the target is always tomorrow's shift.
+    if not start <= current <= min(start + 15, 1439):
         return False
     when = local_now.date() + timedelta(days=1)
     # Read the live roster before claiming a send. A Sheets outage cannot
@@ -246,6 +252,7 @@ async def check_shift_reminder(context, *, store: ShiftStore, group_id: int,
         result = await context.bot.send_message(
             chat_id=group_id, text=format_reminder(when, shift),
             parse_mode="HTML", disable_web_page_preview=True,
+            **({"message_thread_id": topic_id} if topic_id not in (None, 1) else {}),
         )
     except Exception as exc:
         # Network ambiguity: Telegram might have delivered it despite the error.

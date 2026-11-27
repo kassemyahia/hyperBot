@@ -180,6 +180,8 @@ def create_app():
             "shift_sheet_enabled": data["shift_sheet_enabled"],
             "shift_sheet_url": data["shift_sheet_url"],
             "group_configured": data["group_configured"],
+            "shift_reminder_time": data.get("shift_reminder_time", "18:00"),
+            "shift_timezone": data.get("shift_timezone", "Asia/Damascus"),
             "catalog_error": bool(data["sheet_error"]),
             "catalog_add_supported": True,
             "shift_error": bool(data["shift_sheet_error"]),
