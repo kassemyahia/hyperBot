@@ -73,6 +73,8 @@ def snapshot(settings, repo, sheets, store):
         "shift_sheet_url": ("https://docs.google.com/spreadsheets/d/" + settings.shift_sheet_id + "/edit")
                            if settings.shift_sheet_id else "",
         "group_configured": bool(settings.shift_group_chat_id),
+        "shift_reminder_time": settings.shift_reminder_time,
+        "shift_timezone": settings.shift_timezone,
     }
 
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -167,6 +168,8 @@ class Settings:
     catalog_reconcile_enabled: bool = False
     catalog_auto_register: bool = False
     download_request_topic_id: int | None = None
+    shift_topic_id: int | None = None
+    shift_reminder_time: str = "18:00"
 
     @classmethod
     def from_env(cls, *, dotenv_path: Path = Path(".env")) -> "Settings":
@@ -219,6 +222,16 @@ class Settings:
             shift_group_chat_id >= 0 or shift_group_chat_id == source_chat_id
         ):
             raise ConfigurationError("SHIFT_GROUP_CHAT_ID must be a separate, negative group ID")
+        shift_topic_raw = os.getenv("SHIFT_TOPIC_ID", "").strip()
+        try:
+            shift_topic_id = int(shift_topic_raw) if shift_topic_raw else None
+        except ValueError as exc:
+            raise ConfigurationError("SHIFT_TOPIC_ID must be a positive integer or blank") from exc
+        if shift_topic_id is not None and (shift_topic_id < 1 or shift_group_chat_id is None):
+            raise ConfigurationError("SHIFT_TOPIC_ID requires a positive topic ID and a configured shift group")
+        shift_reminder_time = os.getenv("SHIFT_REMINDER_TIME", "18:00").strip()
+        if not re.fullmatch(r"(?:[01][0-9]|2[0-3]):[0-5][0-9]", shift_reminder_time):
+            raise ConfigurationError("SHIFT_REMINDER_TIME must use 24-hour HH:MM format")
         download_request_chat_id = _integer("DOWNLOAD_REQUEST_CHAT_ID")
         topic_raw = os.getenv("DOWNLOAD_REQUEST_TOPIC_ID", "").strip()
         try:
@@ -261,6 +274,8 @@ class Settings:
                 "SOURCE_CHAT_USERNAME", ""
             ).strip().lstrip("@") or None,
             shift_group_chat_id=shift_group_chat_id,
+            shift_topic_id=shift_topic_id,
+            shift_reminder_time=shift_reminder_time,
             shift_timezone=os.getenv("SHIFT_TIMEZONE", "Asia/Damascus").strip(),
             shift_sheet_id=shift_sheet_id,
             shift_sheet_tab=shift_sheet_tab,

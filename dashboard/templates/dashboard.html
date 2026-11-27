@@ -60,7 +60,7 @@
 </tbody></table></div>
 </section>
 <section id="shifts" style="margin-top:26px">
-<h2>{{ 'مناوبات Google Sheets' if shift_sheet_enabled else 'جدول المناوبات الأسبوعي' }}</h2><p>الأحد إلى الخميس · 6 أفراد لكل يوم · التذكير الساعة 9 مساءً بتوقيت دمشق قبل المناوبة بيوم.</p>
+<h2>{{ 'مناوبات Google Sheets' if shift_sheet_enabled else 'جدول المناوبات الأسبوعي' }}</h2><p>الأحد إلى الخميس · 6 أفراد لكل يوم · التذكير الساعة {{ shift_reminder_time }} ({{ shift_timezone }}) قبل المناوبة بيوم.</p>
 {% if shift_sheet_enabled %}
 <p>المناوبات تُقرأ من <a href="{{shift_sheet_url}}" target="_blank" rel="noopener noreferrer">جدول Hyper Shifts</a> مباشرةً، وتُعدّل هناك فقط.</p>
 {% if shift_sheet_error %}<div class="notice">تعذر قراءة جدول المناوبات: {{ shift_sheet_error }}. لن تُرسل تنبيهات اعتماداً على نسخة محلية قديمة.</div>{% endif %}
