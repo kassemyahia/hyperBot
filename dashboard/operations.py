@@ -166,3 +166,39 @@ def reconcile_files(settings, repo, sheets):
     return reconcile_catalog(repo, sheets, source_chat_id=settings.source_chat_id,
                              source_username=settings.source_chat_username,
                              bot_username=settings.bot_username, auto_register=True)
+
+
+def add_catalog_entry(settings, repo, sheets, sheet, request_id, title, size="", path="",
+                      category="", source="", details=""):
+    from urllib.parse import urlsplit
+    from bot.services.matching import FileMatcher, parse_telegram_source_url
+
+    if not sheets:
+        raise ValueError("Google Sheets is not configured")
+    title, size, path, category, source, details = (
+        value.strip() for value in (title, size, path, category, source, details)
+    )
+    if not title:
+        raise ValueError("File title is required")
+    pending = False
+    if source:
+        url = urlsplit(source)
+        if url.scheme != "https" or not url.hostname or url.username or url.password or any(c.isspace() for c in source):
+            raise ValueError("Use an HTTPS source URL")
+        ref = parse_telegram_source_url(source)
+        if ref is not None:
+            matcher = FileMatcher(source_chat_id=settings.source_chat_id,
+                                  source_username=settings.source_chat_username)
+            if not matcher._is_configured_source(ref):
+                raise ValueError("Telegram source must belong to the configured vault")
+            # Normalize public and private vault links to one public reference.
+            source = source_url(settings.source_chat_username, ref.topic_id, ref.message_id)
+            pending = True
+        elif url.hostname.casefold() in ("t.me", "www.t.me", "telegram.me", "www.telegram.me"):
+            raise ValueError("Use a Telegram file message link, not a bot or invite link")
+    file_id = ("sw_" if sheet == "softwares" else "course_") + request_id
+    entry = sheets.append_catalog_only(
+        sheet, file_id=file_id, title=title, size=size, path=path,
+        category=category, source_url=source, details=details, pending=pending,
+    )
+    return {"created": True, "file_id": entry.file_id, "status": entry.telegram_status}

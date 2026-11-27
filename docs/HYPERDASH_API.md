@@ -32,3 +32,7 @@ Use the current deployment, not a new bot deployment. Back up the existing SQLit
 5. Configure Hyperdash config.js with the assigned HTTPS origin, without any path, and test login from the deployed frontend.
 
 Official documentation: https://bot-hosting.net/docs/guides/set-up-a-deployment and https://bot-hosting.net/python-hosting. Actual availability of Domains and resource headroom must be checked in your deployment.
+
+## Add catalog entries
+
+Authenticated POST /api/v1/catalog/add accepts sheet, request_id (32 lowercase hex characters), title, size, path, category, source_url and details. It appends a RAW row only, with a stable File ID and no download token. A configured vault message source is marked pending_review; blank or external HTTPS sources remain unregistered. The existing scheduled reconciliation may subsequently register a uniquely matched discovered file. Courses gain the three integration headers when needed. On ambiguous failure refresh before retrying the same request ID; concurrent external Sheet editors are not transactionally locked.

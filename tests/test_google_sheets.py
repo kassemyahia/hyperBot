@@ -34,6 +34,12 @@ class ValuesAPI:
         self._apply(kwargs["range"], kwargs["body"]["values"])
         return Request({})
 
+    def append(self, **kwargs):
+        name = kwargs["range"].split("'!")[0].strip("'")
+        assert kwargs["valueInputOption"] == "RAW"
+        self.sheets[name].extend(kwargs["body"]["values"])
+        return Request({})
+
     def batchUpdate(self, **kwargs):
         self.batch_bodies.append(kwargs["body"])
         if not self.fail_updates:
@@ -245,3 +251,34 @@ class GoogleSheetsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CatalogOnlyTests(unittest.TestCase):
+    def test_append_preserves_existing_rows_and_retries_by_id(self):
+        headers = ["File Name", "Size", "Path", "Category", "Source Type", "Details "]
+        data = {"softwares": [headers[:], ["Existing", "", "", "", "", ""]],
+                "courses": [headers[:]]}
+        catalog = GoogleSheetsCatalog("sheet", service=Service(ValuesAPI(data)))
+        args = dict(file_id="sw_test", title="New app", size="1 MB", path="Tools",
+                    category="Tools", source_url="https://t.me/Hyper_Vault/10/11",
+                    details="=not a formula", pending=True)
+        first = catalog.append_catalog_only("softwares", **args)
+        second = catalog.append_catalog_only("softwares", **args)
+        self.assertEqual(first.file_id, second.file_id)
+        self.assertEqual(3, len(data["softwares"]))
+        self.assertEqual("Existing", data["softwares"][1][0])
+        self.assertEqual("=not a formula", data["softwares"][2][5])
+        self.assertEqual("pending_review", first.telegram_status)
+        self.assertIsNone(first.telegram_link)
+        with self.assertRaises(ValueError):
+            catalog.append_catalog_only("softwares", **{**args, "file_id": "sw_other",
+                                      "source_url": args["source_url"]+"?single"})
+
+    def test_blank_source_course_is_not_pending(self):
+        headers = ["File Name", "Size", "Path", "Category", "Source Type", "Details "]
+        catalog = GoogleSheetsCatalog("sheet", service=Service(ValuesAPI(
+            {"softwares": [headers[:]], "courses": [headers[:]]})))
+        entry = catalog.append_catalog_only("courses", file_id="course_test", title="Course",
+                    size="", path="", category="", source_url="", details="", pending=False)
+        self.assertIsNone(entry.telegram_link)
+        self.assertIsNone(entry.telegram_status)
