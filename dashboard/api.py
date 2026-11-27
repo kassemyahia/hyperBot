@@ -51,6 +51,17 @@ class Create(Payload):
     details: str = Field(default="", max_length=1500)
 
 
+class CatalogAdd(Payload):
+    sheet: Literal["softwares", "courses"]
+    request_id: str = Field(pattern=r"^[a-f0-9]{32}$")
+    title: str = Field(min_length=1, max_length=200)
+    size: str = Field(default="", max_length=80)
+    path: str = Field(default="", max_length=250)
+    category: str = Field(default="", max_length=100)
+    source_url: str = Field(default="", max_length=2000)
+    details: str = Field(default="", max_length=1200)
+
+
 def create_app():
     _load_dotenv()
     origin = os.getenv("HYPERDASH_ALLOWED_ORIGIN", "").strip()
@@ -170,6 +181,7 @@ def create_app():
             "shift_sheet_url": data["shift_sheet_url"],
             "group_configured": data["group_configured"],
             "catalog_error": bool(data["sheet_error"]),
+            "catalog_add_supported": True,
             "shift_error": bool(data["shift_sheet_error"]),
         }
 
@@ -197,6 +209,12 @@ def create_app():
     def create(payload: Create, _key: str = Depends(authorize)):
         return mutation(ops.create_candidate, payload.candidate_id, payload.sheet,
                         payload.title, payload.size, payload.path, payload.category, payload.details)
+
+    @app.post(PREFIX + "/catalog/add")
+    def catalog_add(payload: CatalogAdd, _key: str = Depends(authorize)):
+        return mutation(ops.add_catalog_entry, payload.sheet, payload.request_id,
+                        payload.title, payload.size, payload.path, payload.category,
+                        payload.source_url, payload.details)
 
     @app.post(PREFIX + "/files/reconcile")
     def reconcile(_key: str = Depends(authorize)):

@@ -385,6 +385,69 @@ class GoogleSheetsCatalog:
             raise SheetsError("New catalog row could not be verified")
         return matches[0]
 
+    def append_catalog_only(
+        self, sheet_name: str, *, file_id: str, title: str, size: str,
+        path: str, category: str, source_url: str, details: str,
+        pending: bool,
+    ) -> CatalogEntry:
+        """Append a catalog row without publishing a download or touching SQLite."""
+        from bot.services.matching import parse_telegram_source_url
+
+        file_id = validate_website_id(file_id)
+        if sheet_name not in SHEET_NAMES or not 1 <= len(title.strip()) <= 200:
+            raise ValueError("Invalid destination or title")
+        fields = {"File Name": title.strip(), "Size": size, "Path": path,
+                  "Category": category, "Source Type": source_url,
+                  "Details": details}
+        entries = self.load_entries()
+        existing = [e for e in entries if e.file_id == file_id]
+        data = self._read(sheet_name)
+        headers = list(data[0]) if data else []
+        positions = _positions(headers)
+        if any(sum(_header_key(str(h)) == _header_key(k) for h in headers) != 1
+               for k in (*fields, *[k for k in REQUIRED_COLUMNS if _header_key(k) in positions])):
+            raise ValueError("Missing or duplicate catalog headers")
+        if existing:
+            if len(existing) != 1 or existing[0].sheet_name != sheet_name:
+                raise ValueError("Request ID already used")
+            row = data[existing[0].row_number - 1]
+            if all((str(row[positions[_header_key(k)]]).strip()
+                    if positions[_header_key(k)] < len(row) else "") == v
+                   for k, v in fields.items()):
+                return existing[0]
+            raise ValueError("Request ID already used for different data")
+
+        def identity(value):
+            ref = parse_telegram_source_url(value)
+            if ref is None:
+                return None
+            return ((ref.username or "").casefold(), ref.internal_chat_id, ref.message_id)
+
+        source_identity = identity(source_url)
+        if pending and any(identity(e.source_type) == source_identity for e in entries):
+            raise ValueError("Telegram source already exists in the catalog")
+        headers, _ = self._ensure_columns(sheet_name, data)
+        positions = _positions(headers)
+        row = [""] * len(headers)
+        fields.update({"File ID": file_id, "Telegram Link": "",
+                       "Telegram Status": "pending_review" if pending else ""})
+        for k, v in fields.items():
+            row[positions[_header_key(k)]] = v
+        try:
+            # Appending is not intrinsically idempotent. Never automatically retry
+            # an ambiguous write; the stable request ID permits a verified retry.
+            self._values().append(
+                spreadsheetId=self.spreadsheet_id, range=f"'{sheet_name}'!A1",
+                valueInputOption="RAW", insertDataOption="INSERT_ROWS",
+                body={"values": [row]},
+            ).execute(num_retries=0)
+        except Exception as exc:
+            raise SheetsError("Append not confirmed; refresh before retry") from exc
+        matches = [e for e in self.load_entries() if e.file_id == file_id]
+        if len(matches) != 1 or matches[0].sheet_name != sheet_name:
+            raise SheetsError("New catalog row could not be verified")
+        return matches[0]
+
     def update_registration(self, file_id: str, telegram_link: str | None,
                             status: str) -> CatalogEntry:
         return self.update_registrations({file_id: (telegram_link, status)})[0]
