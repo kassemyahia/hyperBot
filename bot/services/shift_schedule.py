@@ -206,7 +206,6 @@ class ShiftStore:
 def format_reminder(when: date, shift: Shift) -> str:
     if not shift.complete or day_index(when) is None:
         raise ValueError("Cannot notify an incomplete or cancelled shift")
-    day = DAY_NAMES_AR[day_index(when)]
     def mention(name: str) -> str:
         """Tag valid usernames; preserve ordinary names without fake mentions."""
         value = name.strip()
@@ -218,12 +217,13 @@ def format_reminder(when: date, shift: Shift) -> str:
             return "<code>" + html.escape(value, quote=False) + "</code>"
         return html.escape(value, quote=False)
     return (
-        "📢 <b>تذكير بمناوبة يوم " + day + "</b>\n\n"
-        "👨‍🏫 <b>الكوتش:</b> " + mention(shift.names[0]) + "\n"
-        "🤝 <b>مساعد الكوتش:</b> " + mention(shift.names[1]) + "\n"
-        "👥 <b>أعضاء المناوبة:</b>\n" +
+        "🔔 تذكير بالمناوبة\n"
+        "<b>الكوتش:</b> " + mention(shift.names[0]) + "\n"
+        "<b>مساعد الكوتش:</b> " + mention(shift.names[1]) + "\n"
+        "<b>أعضاء المناوبة:</b>\n" +
         "\n".join(mention(name) for name in shift.names[2:]) +
-        "\n\n⏰ المناوبة غداً — يرجى تأكيد الجاهزية."
+        "\nنذكّركم المناوبة غداً.\n"
+        "يرجى الالتزام بالموعد المحدد، وشكراً"
     )
 
 

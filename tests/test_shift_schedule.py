@@ -72,7 +72,15 @@ class ShiftStoreTests(unittest.TestCase):
         self.store.set_weekly(0, SIX)
         result = format_reminder(d, self.store.effective(d))
         self.assertIn("@CoachOne", result)
-        self.assertIn("الأحد", result)
+        self.assertEqual(result, (
+            "🔔 تذكير بالمناوبة\n"
+            "<b>الكوتش:</b> @CoachOne\n"
+            "<b>مساعد الكوتش:</b> @CocoachTwo\n"
+            "<b>أعضاء المناوبة:</b>\n"
+            "@MemberThree\n@MemberFour\n@MemberFive\n@MemberSix\n"
+            "نذكّركم المناوبة غداً.\n"
+            "يرجى الالتزام بالموعد المحدد، وشكراً"
+        ))
         self.assertEqual(result.count("@"), 6)
 
 
