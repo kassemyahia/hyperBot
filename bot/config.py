@@ -166,6 +166,7 @@ class Settings:
     shift_sheet_year: int | None = None
     catalog_reconcile_enabled: bool = False
     catalog_auto_register: bool = False
+    download_request_topic_id: int | None = None
 
     @classmethod
     def from_env(cls, *, dotenv_path: Path = Path(".env")) -> "Settings":
@@ -218,11 +219,24 @@ class Settings:
             shift_group_chat_id >= 0 or shift_group_chat_id == source_chat_id
         ):
             raise ConfigurationError("SHIFT_GROUP_CHAT_ID must be a separate, negative group ID")
+        download_request_chat_id = _integer("DOWNLOAD_REQUEST_CHAT_ID")
+        topic_raw = os.getenv("DOWNLOAD_REQUEST_TOPIC_ID", "").strip()
+        try:
+            download_request_topic_id = int(topic_raw) if topic_raw else None
+        except ValueError as exc:
+            raise ConfigurationError("DOWNLOAD_REQUEST_TOPIC_ID must be a positive integer or blank") from exc
+        if download_request_topic_id is not None and (
+            download_request_topic_id < 1 or download_request_chat_id >= 0
+        ):
+            raise ConfigurationError(
+                "DOWNLOAD_REQUEST_TOPIC_ID requires a positive topic ID and a negative group chat ID"
+            )
         return cls(
             bot_token=_required("BOT_TOKEN"),
             bot_username=username,
             source_channel_id=source_chat_id,
-            download_request_chat_id=_integer("DOWNLOAD_REQUEST_CHAT_ID"),
+            download_request_chat_id=download_request_chat_id,
+            download_request_topic_id=download_request_topic_id,
             complaint_recipient_chat_id=_integer("COMPLAINT_RECIPIENT_CHAT_ID"),
             admin_user_ids=_integer_set("ADMIN_USER_IDS"),
             database_url=database_url,

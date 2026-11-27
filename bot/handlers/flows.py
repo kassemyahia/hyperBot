@@ -83,11 +83,16 @@ def create_request_handler(settings: Settings):
         message = update.effective_message
         if message is None or not message.text:
             return ConversationHandler.END
+        # Telegram's General topic (ID 1) is addressed by omitting the
+        # thread parameter. Other forum topics require their numeric ID.
+        topic = settings.download_request_topic_id
+        thread = {"message_thread_id": topic} if topic is not None and topic != 1 else {}
         try:
             await context.bot.send_message(
                 settings.download_request_chat_id,
                 f"طلب تحميل جديد\nرقم المحادثة: {message.chat_id}"
                 f"\nالمحتوى:\n{message.text}",
+                **thread,
             )
         except TelegramError as exc:
             logger.warning("Unable to send download request: %s", type(exc).__name__)
