@@ -7,7 +7,12 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 from bot.config import ConfigurationError, Settings
-from bot.handlers.flows import create_complaint_handler, create_request_handler
+from bot.handlers.flows import (
+    ARCHIVE_TEXT, TEAM_TEXT, create_complaint_handler, create_request_handler,
+    create_menu_handler,
+)
+from bot.keyboards.keyboards import CHECK_AVAILABILITY, TEAM_INFO
+from telegram.ext import ConversationHandler
 
 
 def settings():
@@ -96,3 +101,24 @@ class DownloadTopicConfigTests(unittest.TestCase):
     def test_topic_requires_group_chat(self):
         with self.assertRaises(ConfigurationError):
             self.load("42", "1234")
+
+
+class MenuInformationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_team_info_uses_official_links_page(self):
+        update, message = update_with(TEAM_INFO)
+        message.chat = SimpleNamespace(type="private")
+        self.assertEqual(ConversationHandler.END,
+                         await create_menu_handler(settings())(update, SimpleNamespace()))
+        message.reply_text.assert_awaited_once_with(TEAM_TEXT)
+        self.assertIn("https://hyper-team-ops.github.io/HyperTeam-Links/", TEAM_TEXT)
+        self.assertIn("خدماتنا الأساسية:", TEAM_TEXT)
+
+    async def test_archive_uses_new_crawler_url_and_download_instructions(self):
+        update, message = update_with(CHECK_AVAILABILITY)
+        message.chat = SimpleNamespace(type="private")
+        self.assertEqual(ConversationHandler.END,
+                         await create_menu_handler(settings())(update, SimpleNamespace()))
+        message.reply_text.assert_awaited_once_with(ARCHIVE_TEXT)
+        self.assertIn("https://hyper-team-ops.github.io/HyperTeam-Crawler/", ARCHIVE_TEXT)
+        self.assertIn("حمّل الملف عبر البوت", ARCHIVE_TEXT)
+        self.assertNotIn("akaalikh.github.io", ARCHIVE_TEXT)
